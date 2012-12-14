@@ -3,16 +3,7 @@ smart
 
 Smart Business Server
 
-Links
-=====
-
-Useful links will go here.
-
-Team
+wiki
 ====
 
-M Narayana
-
-Kartik Mistry
-
-Deepak Tripathi
+https://github.com/m-narayan/smart/wiki
