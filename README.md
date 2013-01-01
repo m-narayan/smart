@@ -11,15 +11,13 @@ creating branch.
 
 1. How to sync with upstream?
 
-<code>
-$cd ucs/
+   $cd ucs/
 
-$git svn rebase
-</code>
+   $git svn rebase
 
 2. How can I get more information?
 
-See: http://learn.github.com/p/git-svn.html for detailed information.
+   See: http://learn.github.com/p/git-svn.html for detailed information.
 
 wiki
 ====
