@@ -1,0 +1,3 @@
+ucs/*.png usr/share/plymouth/themes/ucs
+ucs/ucs.script usr/share/plymouth/themes/ucs
+ucs/ucs.plymouth usr/share/plymouth/themes/ucs

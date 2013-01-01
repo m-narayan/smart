@@ -1,0 +1,45 @@
+#!/usr/share/ucs-test/runner bash
+## desc: "Display samba Groups as normal user"
+## exposure: safe
+## packages:
+##  - univention-samba
+## roles-not: [basesystem]
+## tags: [basic]
+
+. "$TESTLIBPATH/user.sh" || exit 137
+
+SAMBA="true"
+MAIL="false"
+KERBEROS="false"
+PERSON="false"
+POSIX="false"
+
+
+username="$(user_randomname)"
+
+trap 'user_remove "$username"' INT TERM EXIT
+user_create "$username"
+
+#wait for the user to be created
+i=0
+while true
+do
+    let i=$i+1
+    sleep 1
+    net rpc user -U"$username%$password" | grep "$username" > /dev/null && break
+    if [ $i == 20 ]; then
+	echo "TIMEOUT: The User which has been created in UDM could not be found in samba."
+	break
+    fi
+done
+
+
+if net rpc group -U "$username%univention" | grep -q "Domain Users"
+then
+	echo "***The test trying to display samba-Groups as a user went like it should, everything is ok"
+else
+	fail_fast 1 "The test trying to display samba-Groups as a user failed"
+fi
+
+
+exit $RETVAL

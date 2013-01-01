@@ -1,0 +1,1 @@
+univention-ifplugd-enter-hook etc/dhcp/dhclient-enter-hooks.d/

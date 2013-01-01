@@ -1,0 +1,16 @@
+@%@UCRWARNING=# @%@
+
+@!@
+scope = "sshd"
+accessfileDefault = "/etc/security/access-" + scope + ".conf"
+accessfile = "auth/" + scope + "/accessfile"
+if configRegistry.is_true("auth/" + scope + "/restrict", False):
+	print 'account required pam_access.so accessfile=%s listsep=,' % configRegistry.get(accessfile, accessfileDefault)
+
+print '@include common-account'
+print '@include common-auth'
+print '@include common-session'
+print 'session    optional   pam_mail.so standard noenv'
+print 'session    optional   pam_motd.so'
+print '@include common-password'
+@!@

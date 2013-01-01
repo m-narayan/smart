@@ -1,0 +1,55 @@
+#!/usr/share/ucs-test/runner bash
+## desc: "Accessing sysvol with smbclient"
+## exposure: safe
+## packages:
+##  - univention-samba4
+## roles:
+## - domaincontroller_master
+## - domaincontroller_backup
+## - domaincontroller_slave
+
+. "$TESTLIBPATH/user.sh" || exit 137
+. "$TESTLIBPATH/shares.sh" || exit 137
+. "$TESTLIBPATH/random.sh" || exit 137
+
+#----create User
+SAMBA="true"
+MAIL="false"
+KERBEROS="true"
+PERSON="false"
+POSIX="true"
+
+username="$(user_randomname)"
+password=univention
+
+trap 'user_remove "$username"' INT TERM EXIT
+user_create "$username" || fail_test 1 "Could not create user $username."
+
+#waiting for user and share to be created
+i=0
+while true
+do
+    let i=$i+1
+    sleep 3
+    ldbsearch -H "ldap://localhost" -U"$username%$password" "cn=$username" | grep dn: && break
+    if [ "$i" == 10 ]; then
+	echo "TIMEOUT: The user or share could not be found in samba ldb"
+	break
+    fi
+done
+
+
+#Put a file on sysvol as Administrator
+if [ $(ucr get server/role) == "domaincontroller_master" -a -e /root/root.secret ];then
+    smbclient //localhost/sysvol -U"$ADMINISTRATOR_USER%$(cat /root/root.secret)" -c "put /etc/hosts $domainname/t1" || fail_test 1 "Could not put file on sysvol as Administrator"
+    echo secret
+else 
+    smbclient //localhost/sysvol -U"$ADMINISTRATOR_USER%univention" -c "put /etc/hosts $domainname/t1" || fail_test 1 "Could not put file on sysvol as Administrator"
+    echo normale
+fi
+#Access the folder Policies on sysvol as a user
+smbclient //localhost/sysvol -U"$username%$password" -c "ls $domainname/Policies" || fail_test 1 "Could not access Policies on sysvol as a user"
+#Put a file in the folder Policies on sysvol as a user
+smbclient //localhost/sysvol -U"$username%$password" -c "put /etc/hosts $domainname/t1" && fail_test 1 "Successfully put a file on sysvol as a user"
+
+exit $RETVAL

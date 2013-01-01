@@ -1,0 +1,3 @@
+[service-xen]
+name[de]=Dienst: XEN
+icon=service-xen.gif

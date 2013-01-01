@@ -1,0 +1,6 @@
+Type: file
+File: etc/X11/xorg.conf
+Variables: xorg/.*
+
+Type: file
+File: etc/securetty

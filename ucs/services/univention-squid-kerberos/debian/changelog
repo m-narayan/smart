@@ -1,0 +1,18 @@
+univention-squid-kerberos (2.0.0-1) unstable; urgency=low
+
+  * abort join script on failing udm call (Bug #27753)
+  * version bump for UCS 3.1 (Bug #27966)
+
+ -- Lukas Walter <walter@univention.de>  Wed, 10 Oct 2012 12:47:22 +0200
+
+univention-squid-kerberos (1.0.0-2) unstable; urgency=low
+
+  * fixed control file (Bug #27278) 
+
+ -- Felix Botner <botner@univention.de>  Mon, 09 Jul 2012 14:19:07 +0200
+
+univention-squid-kerberos (1.0.0-1) unstable; urgency=low
+
+  * initial release
+
+ -- Felix Botner <botner@univention.de>  Mon, 09 Jul 2012 13:42:40 +0200
