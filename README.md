@@ -12,19 +12,22 @@ Repository contains,
 
 * debian-cd/ debian-cd SVN truck
 
+FAQs
+====
+
 * How to sync with upstream?
 
-   $cd ucs/
+  $cd ucs/
 
-   $git svn rebase
+  $git svn rebase
 
-   $cd debian-cd/
+  $cd debian-cd/
 
-   $git svn rebase
+  $git svn rebase
 
 * How can I get more information?
 
-   See: http://learn.github.com/p/git-svn.html for detailed information.
+  See: http://learn.github.com/p/git-svn.html for detailed information.
 
 wiki
 ====
