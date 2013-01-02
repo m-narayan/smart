@@ -1,0 +1,97 @@
+#!/bin/sh
+#
+# Helper for image creation
+#
+PUBDIRJIG=$1
+RSYNC_TARGET=$2
+ARCH=$3
+
+LOG=~/build/log/$ARCH.iso_run
+HOSTNAME=`hostname -f`
+LOCK=~/iso_run.lock
+START=`date -u +%H:%M:%S`
+
+# Check to see if another sync is in progress
+if lockfile -! -l 43200 -r-1 "$LOCK"; then  
+    echo $HOSTNAME is not doing another iso_run, lock file $LOCK exists
+    exit 1
+fi
+trap "rm -f $LOCK > /dev/null 2>&1" exit  
+
+rm -f $LOG
+
+# Given an ISO image:
+# 1. create the torrent file
+# 2. copy all of them into place
+process_iso() {
+    FILE=$1
+    OUTDIR=$2
+
+    BTFILE=`echo $FILE.torrent | sed 's/iso-/bt-/'`
+    ~/build/mktorrent $FILE >> $LOG
+
+    echo $OUTDIR/$FILE >> $LOG
+    cp -a $FILE $OUTDIR/$FILE
+    echo $OUTDIR/$BTFILE >> $LOG
+    cp -a $BTFILE $OUTDIR/$BTFILE
+}
+
+# Poor man's rsync, but with some local optimisations
+copy_files() {
+    SRC=$1
+    TARGET=$2
+    ARCHES=$3
+
+    CURRENT=`pwd`
+    cd $SRC
+    for ARCH in $ARCHES
+    do
+        for DISKTYPE in dvd cd bd dlbd; do
+            for DIRTYPE in bt iso jigdo list; do
+                mkdir -p -m775 $TARGET/$ARCH.tmp/$DIRTYPE-$DISKTYPE
+            done
+        done
+
+        cd $ARCH
+        find . -name '*.jigdo' -o -name '*.template' \
+	    -o -name '*.list.gz' -o -name '*SUMS*' | \
+            xargs tar cf - | (cd $TARGET/$ARCH.tmp/ && tar xvf -) >> $LOG
+
+        rm -rf bt-*
+        mkdir bt-cd bt-dvd bt-bd bt-dlbd
+        for FILE in iso-*/*.iso; do
+            if [ -e $FILE ] ; then
+                process_iso $FILE $TARGET/$ARCH.tmp
+            fi
+        done
+        for DISKTYPE in dvd cd bd dlbd; do
+	    for FILE in $TARGET/$ARCH.tmp/iso-$DISKTYPE/*SUMS*; do
+		if [ -e $FILE ] ; then
+		    cp -al $FILE $TARGET/$ARCH.tmp/bt-$DISKTYPE/
+		fi
+	    done
+	done
+        DATE=`date -u`
+        sed "s/ARCH/$ARCH/g;s/DATE/$DATE/g" ~/build/weekly.html \
+            > $TARGET/$ARCH.tmp/HEADER.html
+        cd ..
+    done
+    cd $CURRENT
+}
+
+copy_files $PUBDIRJIG $RSYNC_TARGET $ARCH
+
+echo "$START: Starting $ARCH sync from $PUBDIRJIG to $RSYNC_TARGET" >> $LOG
+if [ -e $RSYNC_TARGET/$ARCH ] ; then
+    mv -f $RSYNC_TARGET/$ARCH $RSYNC_TARGET/$ARCH.old
+fi
+mv $RSYNC_TARGET/$ARCH.tmp $RSYNC_TARGET/$ARCH
+rm -rf $RSYNC_TARGET/$ARCH.old &
+
+# Update the trace file now to force a sync on free.hands.com after each arch
+mkdir -p $RSYNC_TARGET/trace
+date -u > $RSYNC_TARGET/trace/cdimage.debian.org
+
+END=`date -u +%H:%M:%S`
+echo "$ARCH synced across; started at $START, ended at $END"
+echo "$END: Finished" >> $LOG

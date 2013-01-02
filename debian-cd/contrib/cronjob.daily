@@ -1,0 +1,265 @@
+#!/bin/bash
+
+TOPDIR=$(dirname $0)
+
+. $TOPDIR/settings.sh
+
+export PUBDIRJIG=$PUBDIR/daily-builds
+export DATE_BUILD="$DATE-$BUILDNUM"
+export TESTING_SUITE=wheezy
+BUILDS_RUNNING=""
+
+export SID_WANTED=1
+
+. $TOPDIR/common.sh
+
+# Make sure the machine isn't rebooted while we're busy
+reboot_lock
+
+# If we're doing a normal set of daily/weekly builds, leave the
+# checksum filenames alone. Otherwise, make life easier for people
+# combining things later and append a suitable name as we build.
+if [ "$DEBVERSION"x != "testing"x ] ; then
+    export SUMS_EXTENSION=".small"
+fi
+
+finalise_arch_dir () {
+    ARCH=$1
+    INST_VER=$2
+    TYPE=$3
+
+    if [ "$TYPE" = "free" ] ; then
+	ARCH_DIR=$PUBDIRJIG/${INST_VER}_d-i/$DATE_BUILD/$ARCH/
+    elif [ "$TYPE" = "firmware" ] ; then
+	ARCH_DIR=$PUBDIRJIG-firmware/${INST_VER}_d-i/$DATE_BUILD/$ARCH
+    else
+	echo "Uncaught finalise_arch_dir TYPE \"$TYPE\""
+	exit 1
+    fi
+
+    # Only keep things / do any work here if there are any files in the ARCH_DIR
+    NUM_FILES=`find $ARCH_DIR -type f | wc -l`
+    if [ $NUM_FILES = 0 ] ; then
+	rm -rf $ARCH_DIR
+    else
+	ARCH_ISO_DIR=${ARCH_DIR}/iso-cd
+	ARCH_JIGDO_DIR=${ARCH_DIR}/jigdo-cd
+
+	cd $ARCH_ISO_DIR
+	DATESTRING=`date -u`
+	if [ "$TYPE" = "free" ] ; then
+	    sed "s/ARCH/$ARCH/g;s/DATE/$DATESTRING/g;s/BUILDNUM/$BUILDNUM/g;s/INST_VER/$INST_VER/g" $TOPDIR/daily.html > HEADER.html
+	else
+	    sed "s/ARCH/$ARCH/g;s/DATE/$DATESTRING/g;s/BUILDNUM/$BUILDNUM/g;s/INST_VER/$INST_VER/g" $TOPDIR/daily-firmware.html > HEADER.html
+	fi
+	$TOPDIR/debian-cd/tools/imagesums $ARCH_JIGDO_DIR $SUMS_EXTENSION
+	cp $ARCH_JIGDO_DIR/*SUMS* $ARCH_ISO_DIR
+	cd ..
+	~/build/mktorrent iso-cd/*iso
+	~/build/mklist iso-cd/*iso
+	cp iso-cd/*SUMS* bt-cd
+	cd $TOPDIR
+    fi
+}
+
+export RSYNC_TARGET_FREE=/mnt/nfs-cdimage/daily-builds
+export RSYNC_TARGET_FIRMWARE=/mnt/nfs-cdimage/unofficial/non-free/cd-including-firmware/daily-builds
+
+if [ "$ARCHES"x = ""x ] ; then
+    ARCHES="amd64 armel armhf i386 ia64 mips mipsel powerpc sparc multi-arch kfreebsd-amd64 kfreebsd-i386"
+#    ARCHES="amd64"
+fi
+
+if [ "$ARCHES_FIRMWARE"x = ""x ] ; then
+    ARCHES_FIRMWARE="amd64 i386 powerpc multi-arch"
+#    ARCHES_FIRMWARE="amd64"
+fi
+
+cd $TOPDIR &&
+if lockfile -r0 .debian-cd.lock ; then
+
+    echo "svn update debian-cd:"
+    cd debian-cd && svn cleanup ; svn up ; cd ..
+
+    cd $TOPDIR
+
+    . images4testing_d-i
+
+    # Allow desktop selection in isolinux menu for i386 and amd64
+    # For other arches this is a harmless no-op
+    export DESKTOP=all
+    export KERNEL_PARAMS="desktop=all"
+
+    for arch in $ARCHES; do
+	rm -rf $PUBDIRJIG/$arch
+	arch_error=""
+	arch_start=`now`
+	
+        echo "Building $arch:"
+	for ARCHDIR in \
+	    ${PUBDIRJIG}/${TESTING_SUITE}_d-i/${DATE_BUILD}/${arch} \
+	    ${PUBDIRJIG}-firmware/${TESTING_SUITE}_d-i/${DATE_BUILD}/${arch} \
+	    ; do
+	    mkdir -p ${ARCHDIR}/iso-cd ${ARCHDIR}/jigdo-cd
+	done
+
+	if [ "$SID_WANTED" = "1" ] ; then
+	    for ARCHDIR in \
+		${PUBDIRJIG}/sid_d-i/${DATE_BUILD}/${arch} \
+		${PUBDIRJIG}-firmware/sid_d-i/${DATE_BUILD}/${arch} \
+		; do
+		mkdir -p ${ARCHDIR}/iso-cd ${ARCHDIR}/jigdo-cd
+	    done
+	fi
+
+        if [ "$arch" = "multi-arch" ] ; then
+	    for arch1 in $ARCHES_FIRMWARE; do
+		if [ "$arch" = "$arch1" ] ; then
+		    if [ "$SID_WANTED" = "1" ] ; then
+			build_started SIDNIFIRMWARE
+			OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+			    NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=C \
+			    FORCE_FIRMWARE=1 CDNAME=firmware \
+			    TASK=debian-installer+kernel LOGAPPEND="-1" \
+			    MAXISOS=ALL MAXJIGDOS=ALL \
+			    DI=sid DI_DIST="$DI_DIST" VARIANTS=xen \
+			    DI_WWW_HOME=default ./testingcds "amd64 i386" &
+		    fi
+
+		    build_started TESTINGNIFIRMWARE
+		    OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+			NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=C \
+			FORCE_FIRMWARE=1 CDNAME=firmware \
+			TASK=debian-installer+kernel LOGAPPEND="-1" \
+			MAXISOS=ALL MAXJIGDOS=ALL \
+			DI=${TESTING_SUITE} DI_DIST="$DI_DIST" VARIANTS=xen \
+			./testingcds "amd64 i386" &
+		fi
+	    done
+
+	    if [ "$SID_WANTED" = "1" ] ; then
+		build_started SIDNI
+		OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+                    NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=2 \
+                    TASK=debian-installer+kernel LOGAPPEND="-1" \
+                    MAXISOS=ALL MAXJIGDOS=ALL \
+                    DI=sid DI_DIST="$DI_DIST" VARIANTS=xen \
+                    DI_WWW_HOME=default ./testingcds "amd64 i386" &
+	    fi
+
+	    build_started TESTINGNI
+            OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+                NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=2 \
+                TASK=debian-installer+kernel LOGAPPEND="-1" \
+                MAXISOS=ALL MAXJIGDOS=ALL \
+                DI=${TESTING_SUITE} DI_DIST="$DI_DIST" VARIANTS=xen \
+                ./testingcds "amd64 i386" &
+
+	    catch_parallel_builds
+	    rm -rf $PUBDIRJIG/$arch
+	    if [ "$arch_error"x = "none"x ] ; then
+		finalise_arch_dir $arch ${TESTING_SUITE} free
+		finalise_arch_dir $arch ${TESTING_SUITE} firmware
+		if [ "$SID_WANTED" = "1" ] ; then
+		    finalise_arch_dir $arch sid free
+		    finalise_arch_dir $arch sid firmware
+		fi
+	    fi
+
+        else # end of m-a
+
+	    for arch1 in $ARCHES_FIRMWARE; do
+		if [ "$arch" = "$arch1" ] ; then
+		    if [ "$SID_WANTED" = "1" ] ; then
+			build_started SIDNIFIRMWARE
+			OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+			    FORCE_FIRMWARE=1 CDNAME=firmware \
+			    NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=C \
+			    TASK=debian-installer+kernel MAXISOS=ALL MAXJIGDOS=ALL \
+			    DI=sid DI_WWW_HOME=default DI_DIR="$ARCH_DI_DIR" \
+			    ./testingcds "$arch" &
+		    fi
+
+		    build_started TESTINGNIFIRMWARE
+		    OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+			FORCE_FIRMWARE=1 CDNAME=firmware \
+			NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=C \
+			TASK=debian-installer+kernel MAXISOS=ALL MAXJIGDOS=ALL \
+			DI=${TESTING_SUITE} DI_DIST="$DI_DIST" \
+			./testingcds "$arch" &
+		fi
+	    done
+
+	    if [ "$SID_WANTED" = "1" ] ; then
+		build_started SIDBC
+		OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+		    NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=1 \
+		    TASK=debian-installer MAXISOS=ALL MAXJIGDOS=ALL \
+		    DI=sid DI_WWW_HOME=default DI_DIR="$ARCH_DI_DIR" \
+		    ./testingcds "$arch" &
+
+		build_started SIDNI
+		OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+		    NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=2 \
+		    TASK=debian-installer+kernel MAXISOS=ALL MAXJIGDOS=ALL \
+		    DI=sid DI_WWW_HOME=default DI_DIR="$ARCH_DI_DIR" \
+		    ./testingcds "$arch" &
+	    fi
+
+	    build_started TESTINGBC
+	    OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+		NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=1 \
+		TASK=debian-installer MAXISOS=ALL MAXJIGDOS=ALL \
+		DI=${TESTING_SUITE} DI_DIST="$DI_DIST" \
+		./testingcds "$arch" &
+
+	    build_started TESTINGNI
+	    OMIT_RELEASE_NOTES=1 OMIT_MANUAL=1 NORECOMMENDS=1 \
+		NOSUGGESTS=1 COMPLETE=0 INSTALLER_CD=2 \
+		TASK=debian-installer+kernel MAXISOS=ALL MAXJIGDOS=ALL \
+		DI=${TESTING_SUITE} DI_DIST="$DI_DIST" \
+		./testingcds "$arch" &
+
+	    catch_parallel_builds
+	    rm -rf $PUBDIRJIG/$arch
+	    if [ "$arch_error"x = "none"x ] ; then
+		finalise_arch_dir $arch ${TESTING_SUITE} free
+		finalise_arch_dir $arch ${TESTING_SUITE} firmware
+		if [ "$SID_WANTED" = "1" ] ; then
+		    finalise_arch_dir $arch sid free
+		    finalise_arch_dir $arch sid firmware
+		fi
+	    fi
+
+        fi # end of normal arch build
+    done
+
+    if [ "$NOSYNC"x = ""x ] ; then
+
+        echo "Clean up old builds on build machine:"
+        for DIR in $PUBDIRJIG/* $PUBDIRJIG-firmware/* ; do
+            cd $DIR
+            for THIS in 20* ; do
+                if [ $THIS != $DATE-$BUILDNUM ] ; then
+                    echo "  Deleting $DIR/$THIS"
+                    rm -rf $DIR/$THIS
+                fi
+            done
+        done
+
+	echo "Sync normal builds across to output dir: $RSYNC_TARGET_FREE"
+        rsync -rHltv $PUBDIRJIG/ $RSYNC_TARGET_FREE/
+        echo "Remove extra builds for normal dailies:"
+        ~/bin/remove_extra_dailies $RSYNC_TARGET_FREE "$ARCHES"
+
+	echo "Sync firmware builds across to output dir: $RSYNC_TARGET_FIRMWARE"
+        rsync -rHltv $PUBDIRJIG-firmware/ $RSYNC_TARGET_FIRMWARE/
+        echo "Remove extra builds for firmware dailies:"
+        ~/bin/remove_extra_dailies $RSYNC_TARGET_FIRMWARE "$ARCHES_FIRMWARE"
+
+        echo "$DATE-$BUILDNUM" > $RSYNC_TARGET_FREE/daily-trace
+    fi
+
+    cd $TOPDIR
+    rm -f .debian-cd.lock
+fi
