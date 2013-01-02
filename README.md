@@ -1,25 +1,32 @@
 smart
 =====
 
-Smart Business Server
+Smart Business Server.
 
 Repository
 ==========
 
-This contains upstream clone of ucs at moment. Changes can be made here by
-creating branch.
+Repository contains,
 
-1. How to sync with upstream?
+* ucs/ clone of ucs-3.1 SVN branch
+
+* debian-cd/ debian-cd SVN truck
+
+* How to sync with upstream?
 
    $cd ucs/
 
    $git svn rebase
 
-2. How can I get more information?
+   $cd debian-cd/
+
+   $git svn rebase
+
+* How can I get more information?
 
    See: http://learn.github.com/p/git-svn.html for detailed information.
 
 wiki
 ====
 
-Wiki is located at: https://github.com/m-narayan/smart/wiki
+Wiki is located at github: https://github.com/m-narayan/smart/wiki
