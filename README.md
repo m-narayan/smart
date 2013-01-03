@@ -29,6 +29,14 @@ FAQs
 
   See: http://learn.github.com/p/git-svn.html for detailed information.
 
+* Branchs:
+
+  master: only use to sync upstream changes.
+
+  smart: our branch for development.
+
+  You can have your own branches if you wish.
+
 wiki
 ====
 
