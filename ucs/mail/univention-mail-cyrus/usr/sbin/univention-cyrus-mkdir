@@ -62,7 +62,7 @@ for i in range(0, spamHits):
 sieveSpamFilter =  """# Univention Sieve Script - generated on %s
 require "fileinto";
 
-# Spamfilter
+## Flag: |UniqueId:1|Rulename: Spamfilter
 if header :comparator "i;ascii-casemap" :contains "X-Spam-Level" "%s"  {
 	fileinto "INBOX/%s";
 	stop;
